@@ -292,9 +292,10 @@ namespace MultiThreadedBulkImageConverter
             frmFileExists frmExists = null;
             string newFilename = null;
             string outputExt = null;
-            ParallelOptions parallelOptions = null;
+            ParallelOptions parallelOptions = FigureOutParallelOptions(cbParallelOptions.Text);
             int parallelInt = 1;
             bool filesizeChecked = false;
+
             // Build the pipeline.
             var stage1 = Task.Run(() =>
             {
@@ -307,7 +308,8 @@ namespace MultiThreadedBulkImageConverter
                         {
                             if (!filesizeChecked)
                             {
-                                parallelOptions = FigureOutParallelOptions(item, chkRunParallel.Checked);
+                                
+                                //parallelOptions = FigureOutParallelOptions(item, chkRunParallel.Checked);
                                 parallelInt = parallelOptions.MaxDegreeOfParallelism;
                                 filesizeChecked = true;
                             }
@@ -357,7 +359,7 @@ namespace MultiThreadedBulkImageConverter
                 // as soon as they become available.
                 
 
-                    parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = parallelInt };
+                    //parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = parallelInt };
                     Parallel.ForEach(instructionsToProcess.GetConsumingEnumerable(), parallelOptions, instruction =>
                     {
                         instruction.Process();
@@ -370,6 +372,32 @@ namespace MultiThreadedBulkImageConverter
             //await Task.WhenAll(stage1, stage2);
             Task.WaitAll(stage1, stage2);
         }
+
+        private ParallelOptions FigureOutParallelOptions(string selectedText)
+        {
+            switch (selectedText)
+            {
+                case "100%":
+                    return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+                    break;
+                case "75%":
+                    return new ParallelOptions { MaxDegreeOfParallelism =  Convert.ToInt32(Environment.ProcessorCount * 0.75) };
+                    break;
+                case "50%":
+                    return new ParallelOptions { MaxDegreeOfParallelism = Convert.ToInt32(Environment.ProcessorCount * 0.5) };
+                    break;
+                case "25%":
+                    return new ParallelOptions { MaxDegreeOfParallelism = Convert.ToInt32(Environment.ProcessorCount * 0.25) };
+                    break;
+                case "0":
+                    return new ParallelOptions { MaxDegreeOfParallelism = 1 };
+                    break;
+                default:
+                    return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+                    break;
+            }
+        }
+
         /// <summary>
         /// Allows us to automatically set the parallelism for the conversion task.
         /// </summary>

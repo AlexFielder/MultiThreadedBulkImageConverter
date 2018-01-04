@@ -49,6 +49,8 @@
             this.BtnBrowse = new System.Windows.Forms.Button();
             this.btnStart = new System.Windows.Forms.Button();
             this.chkRunParallel = new System.Windows.Forms.CheckBox();
+            this.cbParallelOptions = new System.Windows.Forms.ComboBox();
+            this.label1 = new System.Windows.Forms.Label();
             this.gbxConversion.SuspendLayout();
             this.gbxProgress.SuspendLayout();
             this.SuspendLayout();
@@ -273,18 +275,44 @@
             // chkRunParallel
             // 
             this.chkRunParallel.AutoSize = true;
-            this.chkRunParallel.Location = new System.Drawing.Point(150, 104);
+            this.chkRunParallel.Enabled = false;
+            this.chkRunParallel.Location = new System.Drawing.Point(378, 104);
             this.chkRunParallel.Name = "chkRunParallel";
             this.chkRunParallel.Size = new System.Drawing.Size(89, 17);
             this.chkRunParallel.TabIndex = 27;
             this.chkRunParallel.Text = "run in Parallel";
             this.chkRunParallel.UseVisualStyleBackColor = true;
             // 
+            // cbParallelOptions
+            // 
+            this.cbParallelOptions.FormattingEnabled = true;
+            this.cbParallelOptions.Items.AddRange(new object[] {
+            "100%",
+            "75%",
+            "50%",
+            "25%",
+            "0%"});
+            this.cbParallelOptions.Location = new System.Drawing.Point(239, 102);
+            this.cbParallelOptions.Name = "cbParallelOptions";
+            this.cbParallelOptions.Size = new System.Drawing.Size(121, 21);
+            this.cbParallelOptions.TabIndex = 28;
+            // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Location = new System.Drawing.Point(150, 105);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(83, 13);
+            this.label1.TabIndex = 29;
+            this.label1.Text = "Parallel Amount:";
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(560, 437);
+            this.Controls.Add(this.label1);
+            this.Controls.Add(this.cbParallelOptions);
             this.Controls.Add(this.chkRunParallel);
             this.Controls.Add(this.BtnStop);
             this.Controls.Add(this.BtnCancel);
@@ -332,6 +360,8 @@
         private System.Windows.Forms.Button BtnBrowse;
         private System.Windows.Forms.Button btnStart;
         private System.Windows.Forms.CheckBox chkRunParallel;
+        private System.Windows.Forms.ComboBox cbParallelOptions;
+        private System.Windows.Forms.Label label1;
     }
 }
 
