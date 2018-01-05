@@ -58,6 +58,7 @@
             // 
             // BtnStop
             // 
+            this.BtnStop.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.BtnStop.Location = new System.Drawing.Point(311, 404);
             this.BtnStop.Name = "BtnStop";
             this.BtnStop.Size = new System.Drawing.Size(75, 23);
@@ -68,6 +69,7 @@
             // 
             // BtnCancel
             // 
+            this.BtnCancel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.BtnCancel.Location = new System.Drawing.Point(392, 404);
             this.BtnCancel.Name = "BtnCancel";
             this.BtnCancel.Size = new System.Drawing.Size(75, 23);
@@ -297,6 +299,7 @@
             this.cbParallelOptions.Name = "cbParallelOptions";
             this.cbParallelOptions.Size = new System.Drawing.Size(121, 21);
             this.cbParallelOptions.TabIndex = 28;
+            this.cbParallelOptions.Text = "100%";
             // 
             // label1
             // 

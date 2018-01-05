@@ -28,7 +28,7 @@ namespace MultiThreadedBulkImageConverter
             this.parallelOptions = parallelOptions;
         }
 
-        internal void Process(object sender, DoWorkEventArgs e)
+        internal void Process() //object sender, DoWorkEventArgs e)
         {
             byte[] photoBytes = File.ReadAllBytes(inputFileName);
 

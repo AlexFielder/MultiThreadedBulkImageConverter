@@ -19,13 +19,13 @@ namespace MultiThreadedBulkImageConverter
     public partial class Form1 : Form
     {
         public BlockingCollection<Instruction> instructionsToProcess = new BlockingCollection<Instruction>();
-        bool keeprunning = false;
+        bool keepRunning = false;
         ParallelOptions parallelOptions;
         BackgroundWorker workerThread = null;
         public Form1()
         {
             InitializeComponent();
-            //InstatiateWorkerThread();
+            InstatiateWorkerThread();
             SetupControls();
             //OnImageConversionStart += new ImageEvent(ImageOps_OnImageConversionStart);
             //OnImageConversionComplete += new ImageEvent(ImageOps_OnImageConversionComplete);
@@ -40,17 +40,6 @@ namespace MultiThreadedBulkImageConverter
         public static event ImageEvent OnImageConversionComplete;
 
         public static event ImageEvent OnImageConversionStart;
-        //private void InstatiateWorkerThread()
-        //{
-        //    workerThread = new BackgroundWorker();
-
-        //    workerThread.DoWork += new DoWorkEventHandler(WorkerThread_DoWork);
-        //    workerThread.RunWorkerCompleted += new RunWorkerCompletedEventHandler(WorkerThread_RunWorkerCompleted);
-        //    workerThread.WorkerReportsProgress = true;
-        //    workerThread.WorkerSupportsCancellation = true;
-        //    workerThread.ProgressChanged += WorkerThread_ProgressChanged;
-        //}
-
         private enum FilenameAlreadyExistsOption
         {
             Ask,
@@ -331,7 +320,7 @@ namespace MultiThreadedBulkImageConverter
 
         private void BtnCancel_Click(object sender, EventArgs e)
         {
-
+            workerThread.CancelAsync();
         }
 
         private void BtnExit_Click(object sender, EventArgs e)
@@ -371,31 +360,12 @@ namespace MultiThreadedBulkImageConverter
 
             ReadAndProcessFilesInBackground(txtImageDirectory.Text, subfolders, inputFileMasks, format, chkDeleteAfterConvert.Checked, FilenameAlreadyExistsOption.Ask);
             //ReadAndProcessFilesAsync(txtImageDirectory.Text, subfolders, inputFileMasks, format, chkDeleteAfterConvert.Checked, FilenameAlreadyExistsOption.Ask);
-            //workerThread.RunWorkerAsync();
-            int iterations = 0;
-            double count = instructionsToProcess.Count;
-            Parallel.ForEach(instructionsToProcess, parallelOptions,
-                 (q) =>
-                 {
-                     BackgroundWorker worker = new BackgroundWorker
-                     {
-                         WorkerReportsProgress = true
-                     };
-
-                     worker.RunWorkerAsync();
-                     int percentComplete = Convert.ToInt32(iterations / count);
-
-                     worker.DoWork += new DoWorkEventHandler(q.Process);
-                     worker.ProgressChanged += new ProgressChangedEventHandler(WorkerThread_ProgressChanged);
-                     worker.ReportProgress(percentComplete, q.outputFileName);
-                     worker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(WorkerThread_RunWorkerCompleted);
-                 });
-
+            workerThread.RunWorkerAsync();
         }
 
-        private void BtnStop_Click(object sender, EventArgs e)
+        public void BtnStop_Click(object sender, EventArgs e)
         {
-
+            keepRunning = false;
         }
 
         private ParallelOptions FigureOutParallelOptions(string selectedText)
@@ -520,6 +490,17 @@ namespace MultiThreadedBulkImageConverter
                 default:
                     return inputExtension;
             }
+        }
+
+        private void InstatiateWorkerThread()
+        {
+            workerThread = new BackgroundWorker();
+            workerThread.WorkerSupportsCancellation = true;
+            workerThread.DoWork += new DoWorkEventHandler(WorkerThread_DoWork);
+            workerThread.RunWorkerCompleted += new RunWorkerCompletedEventHandler(WorkerThread_RunWorkerCompleted);
+            workerThread.WorkerReportsProgress = true;
+            workerThread.WorkerSupportsCancellation = true;
+            workerThread.ProgressChanged += new ProgressChangedEventHandler(WorkerThread_ProgressChanged);
         }
 
         private void LnkSourceForgeProfile_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
@@ -693,11 +674,31 @@ namespace MultiThreadedBulkImageConverter
             }
         }
 
+        public void WorkerThread_DoWork(object sender, DoWorkEventArgs e)
+        {
+            while (!e.Cancel)
+            {
+                //foreach (var item in instructionsToProcess)
+                //{
+                //    item.Process();
+                //}
+                int iterations = 0;
+                double count = instructionsToProcess.Count;
+                Parallel.ForEach(instructionsToProcess.GetConsumingEnumerable(), parallelOptions, instruction =>
+                    {
+                        instruction.Process();
+                        iterations++;
+                        int percentComplete = Convert.ToInt32(iterations / count);
+                        workerThread.ReportProgress(percentComplete, instruction.outputFileName);
+                    });
+                //workerThread.ReportProgress(prgStatus.Value++);
+            }
+        }
         private void WorkerThread_ProgressChanged(object sender, ProgressChangedEventArgs e)
         {
             SetLabelStatusText("Converted " + e.UserState.ToString()); //args.ImageFilename;
-            SetProgressStatusValue(e.ProgressPercentage);
-            //prgStatus.Value++;
+            //SetProgressStatusValue(e.ProgressPercentage);
+            prgStatus.Value++;
         }
 
         private void WorkerThread_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
