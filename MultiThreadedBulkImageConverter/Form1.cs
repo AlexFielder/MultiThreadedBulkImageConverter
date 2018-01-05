@@ -19,17 +19,74 @@ namespace MultiThreadedBulkImageConverter
     public partial class Form1 : Form
     {
         BackgroundWorker workerThread = null;
+        ParallelOptions parallelOptions;
+        bool keeprunning = false;
         public delegate void ImageEvent(ImageOpsEventArgs args);
         public static event ImageEvent OnImageConversionStart;
         public static event ImageEvent OnImageConversionComplete;
+        public BlockingCollection<Instruction> instructionsToProcess = new BlockingCollection<Instruction>();
         public Form1()
         {
             InitializeComponent();
-            //InstatiateWorkerThread();
+            InstatiateWorkerThread();
             SetupControls();
             OnImageConversionStart += new ImageEvent(ImageOps_OnImageConversionStart);
             OnImageConversionComplete += new ImageEvent(ImageOps_OnImageConversionComplete);
 
+        }
+
+        private void InstatiateWorkerThread()
+        {
+            workerThread = new BackgroundWorker();
+            
+            workerThread.DoWork += new DoWorkEventHandler(WorkerThread_DoWork);
+            workerThread.RunWorkerCompleted += new RunWorkerCompletedEventHandler(WorkerThread_RunWorkerCompleted);
+            workerThread.WorkerReportsProgress = true;
+            workerThread.WorkerSupportsCancellation = true;
+            workerThread.ProgressChanged += WorkerThread_ProgressChanged;
+        }
+
+        private void WorkerThread_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+            if (e.Cancelled)
+            {
+                lblStatus.Text = "Cancelled";
+            }
+            else
+            {
+                lblStatus.Text = "Stopped";
+            }
+            workerThread.CancelAsync();
+        }
+
+        public void WorkerThread_DoWork(object sender, DoWorkEventArgs e)
+        {
+            keeprunning = true;
+
+            while(keeprunning)
+            {
+                //foreach (var item in instructionsToProcess)
+                //{
+                //    item.Process();
+                //}
+                int iterations = 0;
+                double count = instructionsToProcess.Count;
+                Parallel.ForEach(instructionsToProcess.GetConsumingEnumerable(), parallelOptions, instruction =>
+                    {
+                        instruction.Process();
+                        iterations++;
+                        int percentComplete = Convert.ToInt32(iterations / count);
+                        workerThread.ReportProgress(percentComplete, instruction.outputFileName);
+                    });
+                //workerThread.ReportProgress(prgStatus.Value++);
+            }
+        }
+
+        private void WorkerThread_ProgressChanged(object sender, ProgressChangedEventArgs e)
+        {
+            lblStatus.Text = "Converted " + e.UserState.ToString(); //args.ImageFilename;
+            lblStatus.Refresh();
+            prgStatus.Value++;
         }
 
         private void ImageOps_OnImageConversionComplete(ImageOpsEventArgs args)
@@ -260,8 +317,12 @@ namespace MultiThreadedBulkImageConverter
                 prgStatus.Value = 0;
                 prgStatus.Maximum = totalFiles;
             }
-            ReadAndProcessFilesAsync(txtImageDirectory.Text, subfolders, inputFileMasks, format, chkDeleteAfterConvert.Checked, FilenameAlreadyExistsOption.Ask);
             if (!OKToProceed()) return;
+            
+            ReadAndProcessFilesInBackground(txtImageDirectory.Text, subfolders, inputFileMasks, format, chkDeleteAfterConvert.Checked, FilenameAlreadyExistsOption.Ask);
+            //ReadAndProcessFilesAsync(txtImageDirectory.Text, subfolders, inputFileMasks, format, chkDeleteAfterConvert.Checked, FilenameAlreadyExistsOption.Ask);
+            workerThread.RunWorkerAsync();
+
         }
 
         private void BtnStop_Click(object sender, EventArgs e)
@@ -277,6 +338,77 @@ namespace MultiThreadedBulkImageConverter
         private void BtnExit_Click(object sender, EventArgs e)
         {
             this.Close();
+        }
+
+        private void ReadAndProcessFilesInBackground(
+            string filePath,
+            SearchOption includeSubDirs,
+            string[] convertFromFileMasks,
+            ImageFormat convertTo,
+            bool deleteAfterConversion,
+            FilenameAlreadyExistsOption filenameAlreadyExistsOption)
+        {
+            instructionsToProcess = new BlockingCollection<Instruction>();
+            frmFileExists frmExists = null;
+            string newFilename = null;
+            string outputExt = null;
+            parallelOptions = FigureOutParallelOptions(cbParallelOptions.Text);
+            int parallelInt = 1;
+            bool filesizeChecked = false;
+
+            try
+            {
+                outputExt = GetOutputExtension(convertTo.ToString()).ToLower();
+                foreach (var fileMask in convertFromFileMasks)
+                {
+                    foreach (string item in System.IO.Directory.EnumerateFiles(filePath, fileMask, includeSubDirs))
+                    {
+                        if (!filesizeChecked)
+                        {
+
+                            //parallelOptions = FigureOutParallelOptions(item, chkRunParallel.Checked);
+                            parallelInt = parallelOptions.MaxDegreeOfParallelism;
+                            filesizeChecked = true;
+                        }
+                        newFilename = Path.GetDirectoryName(item) + "\\" + Path.GetFileNameWithoutExtension(item) + "." + outputExt;
+                        Instruction instruction = new Instruction(inputFileName: item, outputFileName: newFilename, formatToOutput: convertTo, parallelOptions: parallelOptions);
+                        if (File.Exists(item))
+                        {
+                            switch (filenameAlreadyExistsOption)
+                            {
+                                case FilenameAlreadyExistsOption.Ask:
+                                    //Display dialog asking user what to do
+                                    if (frmExists == null)
+                                        frmExists = new frmFileExists(newFilename);
+                                    else
+                                        frmExists.Filename = filePath + "\\" + newFilename;
+
+                                    frmExists.ShowDialog();
+                                    if (frmExists.AlwaysUseSelectedOption)
+                                    {
+                                        if (frmExists.Overwrite)
+                                            filenameAlreadyExistsOption = FilenameAlreadyExistsOption.Overwrite;
+                                        else
+                                            filenameAlreadyExistsOption = FilenameAlreadyExistsOption.Skip;
+                                    }
+                                    break;
+                                case FilenameAlreadyExistsOption.Overwrite:
+                                    break;
+                                case FilenameAlreadyExistsOption.Skip:
+                                    continue;
+                            }
+                        }
+
+                        instructionsToProcess.Add(instruction);
+                    }
+                }
+            }
+            finally
+            {
+                instructionsToProcess.CompleteAdding();
+            }
+
+
         }
 
         private void ReadAndProcessFilesAsync(
@@ -322,7 +454,7 @@ namespace MultiThreadedBulkImageConverter
                                     case FilenameAlreadyExistsOption.Ask:
                                         //Display dialog asking user what to do
                                         if (frmExists == null)
-                                            frmExists = new frmFileExists(filePath + "\\" + newFilename);
+                                            frmExists = new frmFileExists(newFilename);
                                         else
                                             frmExists.Filename = filePath + "\\" + newFilename;
 
@@ -379,22 +511,16 @@ namespace MultiThreadedBulkImageConverter
             {
                 case "100%":
                     return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
-                    break;
                 case "75%":
                     return new ParallelOptions { MaxDegreeOfParallelism =  Convert.ToInt32(Environment.ProcessorCount * 0.75) };
-                    break;
                 case "50%":
                     return new ParallelOptions { MaxDegreeOfParallelism = Convert.ToInt32(Environment.ProcessorCount * 0.5) };
-                    break;
                 case "25%":
                     return new ParallelOptions { MaxDegreeOfParallelism = Convert.ToInt32(Environment.ProcessorCount * 0.25) };
-                    break;
                 case "0":
                     return new ParallelOptions { MaxDegreeOfParallelism = 1 };
-                    break;
                 default:
                     return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
-                    break;
             }
         }
 

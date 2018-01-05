@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
             this.BtnStop = new System.Windows.Forms.Button();
             this.BtnCancel = new System.Windows.Forms.Button();
             this.lblStep3 = new System.Windows.Forms.Label();
@@ -327,8 +328,9 @@
             this.Controls.Add(this.lblImageDirectory);
             this.Controls.Add(this.BtnBrowse);
             this.Controls.Add(this.btnStart);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Form1";
-            this.Text = "Form1";
+            this.Text = "Bulk Image Converter";
             this.gbxConversion.ResumeLayout(false);
             this.gbxConversion.PerformLayout();
             this.gbxProgress.ResumeLayout(false);

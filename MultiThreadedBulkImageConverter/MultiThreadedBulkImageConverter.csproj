@@ -93,5 +93,16 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <Content Include="Installer\BulkImageConverter.iss" />
+    <Content Include="Installer\setup.exe" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>if $(ConfigurationName) == Release ( call "P:\Graitec UK Software Development\Code signing\SignModule-64.cmd" "$(TargetPath)"
+cd "$(ProjectDir)\Installer"
+"C:\Program Files (x86)\Inno Setup 5\ISCC.exe" "BulkImageConverter.iss"
+)</PostBuildEvent>
+  </PropertyGroup>
 </Project>

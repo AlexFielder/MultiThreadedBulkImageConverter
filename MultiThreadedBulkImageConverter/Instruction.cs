@@ -11,7 +11,7 @@ namespace MultiThreadedBulkImageConverter
     public class Instruction
     {
         private string inputFileName;
-        private string outputFileName;
+        public string outputFileName;
         private ImageFormat formatToOutput;
         private ParallelOptions parallelOptions;
 
