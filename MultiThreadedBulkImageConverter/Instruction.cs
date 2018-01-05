@@ -1,6 +1,7 @@
 ﻿using ImageProcessor;
 using ImageProcessor.Imaging.Formats;
 using System;
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
@@ -27,7 +28,7 @@ namespace MultiThreadedBulkImageConverter
             this.parallelOptions = parallelOptions;
         }
 
-        internal void Process()
+        internal void Process(object sender, DoWorkEventArgs e)
         {
             byte[] photoBytes = File.ReadAllBytes(inputFileName);
 

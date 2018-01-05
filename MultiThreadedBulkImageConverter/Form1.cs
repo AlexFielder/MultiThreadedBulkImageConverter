@@ -18,149 +18,66 @@ namespace MultiThreadedBulkImageConverter
 {
     public partial class Form1 : Form
     {
-        BackgroundWorker workerThread = null;
-        ParallelOptions parallelOptions;
-        bool keeprunning = false;
-        public delegate void ImageEvent(ImageOpsEventArgs args);
-        public static event ImageEvent OnImageConversionStart;
-        public static event ImageEvent OnImageConversionComplete;
         public BlockingCollection<Instruction> instructionsToProcess = new BlockingCollection<Instruction>();
+        bool keeprunning = false;
+        ParallelOptions parallelOptions;
+        BackgroundWorker workerThread = null;
         public Form1()
         {
             InitializeComponent();
-            InstatiateWorkerThread();
+            //InstatiateWorkerThread();
             SetupControls();
-            OnImageConversionStart += new ImageEvent(ImageOps_OnImageConversionStart);
-            OnImageConversionComplete += new ImageEvent(ImageOps_OnImageConversionComplete);
+            //OnImageConversionStart += new ImageEvent(ImageOps_OnImageConversionStart);
+            //OnImageConversionComplete += new ImageEvent(ImageOps_OnImageConversionComplete);
 
         }
 
-        private void InstatiateWorkerThread()
-        {
-            workerThread = new BackgroundWorker();
-            
-            workerThread.DoWork += new DoWorkEventHandler(WorkerThread_DoWork);
-            workerThread.RunWorkerCompleted += new RunWorkerCompletedEventHandler(WorkerThread_RunWorkerCompleted);
-            workerThread.WorkerReportsProgress = true;
-            workerThread.WorkerSupportsCancellation = true;
-            workerThread.ProgressChanged += WorkerThread_ProgressChanged;
-        }
+        public delegate void ImageEvent(ImageOpsEventArgs args);
+        delegate void SetProgressCallback(int progress);
 
-        private void WorkerThread_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
-        {
-            if (e.Cancelled)
-            {
-                lblStatus.Text = "Cancelled";
-            }
-            else
-            {
-                lblStatus.Text = "Stopped";
-            }
-            workerThread.CancelAsync();
-        }
+        delegate void SetTextCallback(string text);
 
-        public void WorkerThread_DoWork(object sender, DoWorkEventArgs e)
-        {
-            keeprunning = true;
+        public static event ImageEvent OnImageConversionComplete;
 
-            while(keeprunning)
-            {
-                //foreach (var item in instructionsToProcess)
-                //{
-                //    item.Process();
-                //}
-                int iterations = 0;
-                double count = instructionsToProcess.Count;
-                Parallel.ForEach(instructionsToProcess.GetConsumingEnumerable(), parallelOptions, instruction =>
-                    {
-                        instruction.Process();
-                        iterations++;
-                        int percentComplete = Convert.ToInt32(iterations / count);
-                        workerThread.ReportProgress(percentComplete, instruction.outputFileName);
-                    });
-                //workerThread.ReportProgress(prgStatus.Value++);
-            }
-        }
+        public static event ImageEvent OnImageConversionStart;
+        //private void InstatiateWorkerThread()
+        //{
+        //    workerThread = new BackgroundWorker();
 
-        private void WorkerThread_ProgressChanged(object sender, ProgressChangedEventArgs e)
-        {
-            lblStatus.Text = "Converted " + e.UserState.ToString(); //args.ImageFilename;
-            lblStatus.Refresh();
-            prgStatus.Value++;
-        }
+        //    workerThread.DoWork += new DoWorkEventHandler(WorkerThread_DoWork);
+        //    workerThread.RunWorkerCompleted += new RunWorkerCompletedEventHandler(WorkerThread_RunWorkerCompleted);
+        //    workerThread.WorkerReportsProgress = true;
+        //    workerThread.WorkerSupportsCancellation = true;
+        //    workerThread.ProgressChanged += WorkerThread_ProgressChanged;
+        //}
 
-        private void ImageOps_OnImageConversionComplete(ImageOpsEventArgs args)
+        private enum FilenameAlreadyExistsOption
         {
-            lblStatus.Text = "Converting " + args.ImageFilename + "...";
-            lblStatus.Refresh();
-            //prgStatus.Value++;
-        }
-
-        private void ImageOps_OnImageConversionStart(ImageOpsEventArgs args)
-        {
-            lblStatus.Text = "Converted " + args.ImageFilename;
-            lblStatus.Refresh();
-            prgStatus.Value++;
+            Ask,
+            Overwrite,
+            Skip
         }
 
         /// <summary>
-        /// Sets up the controls on the form.  No kidding.
+        /// Gets the file masks which apply to the specified image type
         /// </summary>
-        protected void SetupControls()
+        /// <param name="imageType"></param>
+        /// <returns></returns>
+        public static string[] GetFileMasks(string imageType)
         {
-            PopulateImageTypeCombo(cboSourceTypes);
-            PopulateImageTypeCombo(cboOutputTypes);
-            //cboSourceTypes.Items = cboSourceTypes.Items;
-        }
-
-        private void PopulateImageTypeCombo(ComboBox pCombo)
-        {
-            PropertyInfo[] props;
-
-            try
+            switch (imageType)
             {
-                //Get the static properties of the ImageFormat class
-                //props = typeof(System.Drawing.Imaging.ImageFormat).GetProperties(BindingFlags.Static);
-                props = typeof(System.Drawing.Imaging.ImageFormat).GetProperties(BindingFlags.Static | BindingFlags.Public);
+                case "Icon":
+                    return new string[] { "*.ico", "*.icon" };
 
-                //Loop through each property and add to the specified ComboBox
-                //pCombo.Items.AddRange(props); //Can't do it this way, as ToString() returns the long name
-                foreach (PropertyInfo prop in props)
-                {
-                    if (prop.Name != "MemoryBmp" && prop.Name != "Icon")
-                        pCombo.Items.Add(prop.Name);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("An error occurred while trying to load available image types:\n\n" + ex.Message,
-                    "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                props = null;
-            }
-        }
+                case "Jpeg":
+                    return new string[] { "*.jpg", "*.jpeg" };
 
-        private void BtnBrowse_Click(object sender, EventArgs e)
-        {
-            FolderBrowserDialog dlg = null;
+                case "Tiff":
+                    return new string[] { "*.tif", "*.tiff" };
 
-            try
-            {
-                dlg = new FolderBrowserDialog();
-                if (dlg.ShowDialog() != DialogResult.Cancel)
-                    txtImageDirectory.Text = dlg.SelectedPath;
-
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                if (dlg != null)
-                    dlg.Dispose();
+                default:
+                    return new string[] { "*." + imageType };
             }
         }
 
@@ -196,7 +113,6 @@ namespace MultiThreadedBulkImageConverter
             }
         }
 
-
         /// <summary>
         /// Gets the appropriate extension to use for the selected output image format
         /// </summary>
@@ -219,58 +135,6 @@ namespace MultiThreadedBulkImageConverter
             }
         }
 
-
-        /// <summary>
-        /// Toggles the Enabled property of the input controls
-        /// </summary>
-        /// <param name="Enable">A boolean indicating whether or not the controls should be enabled</param>
-        protected void ToggleInputEnable(bool Enable)
-        {
-            txtImageDirectory.Enabled = Enable;
-            BtnBrowse.Enabled = Enable;
-            cboSourceTypes.Enabled = Enable;
-            cboOutputTypes.Enabled = Enable;
-            chkDeleteAfterConvert.Enabled = Enable;
-            btnStart.Enabled = Enable;
-            btnExit.Enabled = Enable;
-        }
-
-
-        private void LnkSourceForgeProfile_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
-        {
-            //Open link to my SourceForge page
-            System.Diagnostics.Process.Start("http://sourceforge.net/users/slade73/");
-        }
-
-        /// <summary>
-        /// Gets the number of files from the specified directory which match the supplied filemask
-        /// </summary>
-        /// <param name="directory">The directory to get a file count from</param>
-        /// <param name="fileMasks">The filemask(s) to count</param>
-        /// <param name="includeSubDirs">Specifies whether subdirectories of the specified directory should 
-        /// be included</param>
-        /// <returns>The total number of files from the specified directory which match the supplied filemask</returns>
-        private int GetFileCount(string directory, string[] fileMasks, bool includeSubDirs)
-        {
-            int totalFiles = 0;
-
-            foreach (string fileMask in fileMasks)
-            {
-                totalFiles += Directory.GetFiles(directory, fileMask).Length;
-            }
-
-            //If we're including subdirectories, recursively call this function for each subdirectory
-            if (includeSubDirs)
-            {
-                foreach (string dir in Directory.GetDirectories(directory))
-                {
-                    totalFiles += GetFileCount(dir, fileMasks, true);
-                }
-            }
-
-            return totalFiles;
-        }
-
         /// <summary>
         /// Gets the appropriate type of ImageFormat based on the user's output format selection
         /// </summary>
@@ -288,302 +152,6 @@ namespace MultiThreadedBulkImageConverter
             {
                 type = null;
             }
-        }
-        private void BtnStart_ClickAsync(object sender, EventArgs e)
-        {
-            ImageFormat format = null;
-            string[] inputFileMasks = null;
-            inputFileMasks = GetFileMasks(cboSourceTypes.Text);
-            format = GetSelectedOutputImageFormat();
-            SearchOption subfolders;
-            if (chkIncludeSubDirs.Checked)
-            {
-                subfolders = SearchOption.AllDirectories;
-            }
-            else
-            {
-                subfolders = SearchOption.TopDirectoryOnly;
-            }
-            int totalFiles = GetFileCount(txtImageDirectory.Text, inputFileMasks, chkIncludeSubDirs.Checked);
-            if (totalFiles == 0)
-            {
-                this.Cursor = Cursors.Default;
-                MessageBox.Show("There are no files of the type you specified in the chosen directory.",
-                    "No files to convert", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-            else
-            {
-                prgStatus.Value = 0;
-                prgStatus.Maximum = totalFiles;
-            }
-            if (!OKToProceed()) return;
-            
-            ReadAndProcessFilesInBackground(txtImageDirectory.Text, subfolders, inputFileMasks, format, chkDeleteAfterConvert.Checked, FilenameAlreadyExistsOption.Ask);
-            //ReadAndProcessFilesAsync(txtImageDirectory.Text, subfolders, inputFileMasks, format, chkDeleteAfterConvert.Checked, FilenameAlreadyExistsOption.Ask);
-            workerThread.RunWorkerAsync();
-
-        }
-
-        private void BtnStop_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void BtnCancel_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void BtnExit_Click(object sender, EventArgs e)
-        {
-            this.Close();
-        }
-
-        private void ReadAndProcessFilesInBackground(
-            string filePath,
-            SearchOption includeSubDirs,
-            string[] convertFromFileMasks,
-            ImageFormat convertTo,
-            bool deleteAfterConversion,
-            FilenameAlreadyExistsOption filenameAlreadyExistsOption)
-        {
-            instructionsToProcess = new BlockingCollection<Instruction>();
-            frmFileExists frmExists = null;
-            string newFilename = null;
-            string outputExt = null;
-            parallelOptions = FigureOutParallelOptions(cbParallelOptions.Text);
-            int parallelInt = 1;
-            bool filesizeChecked = false;
-
-            try
-            {
-                outputExt = GetOutputExtension(convertTo.ToString()).ToLower();
-                foreach (var fileMask in convertFromFileMasks)
-                {
-                    foreach (string item in System.IO.Directory.EnumerateFiles(filePath, fileMask, includeSubDirs))
-                    {
-                        if (!filesizeChecked)
-                        {
-
-                            //parallelOptions = FigureOutParallelOptions(item, chkRunParallel.Checked);
-                            parallelInt = parallelOptions.MaxDegreeOfParallelism;
-                            filesizeChecked = true;
-                        }
-                        newFilename = Path.GetDirectoryName(item) + "\\" + Path.GetFileNameWithoutExtension(item) + "." + outputExt;
-                        Instruction instruction = new Instruction(inputFileName: item, outputFileName: newFilename, formatToOutput: convertTo, parallelOptions: parallelOptions);
-                        if (File.Exists(item))
-                        {
-                            switch (filenameAlreadyExistsOption)
-                            {
-                                case FilenameAlreadyExistsOption.Ask:
-                                    //Display dialog asking user what to do
-                                    if (frmExists == null)
-                                        frmExists = new frmFileExists(newFilename);
-                                    else
-                                        frmExists.Filename = filePath + "\\" + newFilename;
-
-                                    frmExists.ShowDialog();
-                                    if (frmExists.AlwaysUseSelectedOption)
-                                    {
-                                        if (frmExists.Overwrite)
-                                            filenameAlreadyExistsOption = FilenameAlreadyExistsOption.Overwrite;
-                                        else
-                                            filenameAlreadyExistsOption = FilenameAlreadyExistsOption.Skip;
-                                    }
-                                    break;
-                                case FilenameAlreadyExistsOption.Overwrite:
-                                    break;
-                                case FilenameAlreadyExistsOption.Skip:
-                                    continue;
-                            }
-                        }
-
-                        instructionsToProcess.Add(instruction);
-                    }
-                }
-            }
-            finally
-            {
-                instructionsToProcess.CompleteAdding();
-            }
-
-
-        }
-
-        private void ReadAndProcessFilesAsync(
-            string filePath, 
-            SearchOption includeSubDirs, 
-            string[] convertFromFileMasks, 
-            ImageFormat convertTo, 
-            bool deleteAfterConversion,
-            FilenameAlreadyExistsOption filenameAlreadyExistsOption)
-        {
-            // Our thread-safe collection used for the handover.
-            var instructionsToProcess = new BlockingCollection<Instruction>();
-            frmFileExists frmExists = null;
-            string newFilename = null;
-            string outputExt = null;
-            ParallelOptions parallelOptions = FigureOutParallelOptions(cbParallelOptions.Text);
-            int parallelInt = 1;
-            bool filesizeChecked = false;
-
-            // Build the pipeline.
-            var stage1 = Task.Run(() =>
-            {
-                try
-                {
-                    outputExt = GetOutputExtension(convertTo.ToString()).ToLower();
-                    foreach (var fileMask in convertFromFileMasks)
-                    {
-                        foreach (string item in System.IO.Directory.EnumerateFiles(filePath, fileMask, includeSubDirs))
-                        {
-                            if (!filesizeChecked)
-                            {
-                                
-                                //parallelOptions = FigureOutParallelOptions(item, chkRunParallel.Checked);
-                                parallelInt = parallelOptions.MaxDegreeOfParallelism;
-                                filesizeChecked = true;
-                            }
-                            newFilename = Path.GetDirectoryName(item) + "\\" + Path.GetFileNameWithoutExtension(item) + "." + outputExt;
-                            Instruction instruction = new Instruction(inputFileName: item, outputFileName: newFilename, formatToOutput: convertTo, parallelOptions: parallelOptions);
-                            if (File.Exists(item))
-                            {
-                                switch (filenameAlreadyExistsOption)
-                                {
-                                    case FilenameAlreadyExistsOption.Ask:
-                                        //Display dialog asking user what to do
-                                        if (frmExists == null)
-                                            frmExists = new frmFileExists(newFilename);
-                                        else
-                                            frmExists.Filename = filePath + "\\" + newFilename;
-
-                                        frmExists.ShowDialog();
-                                        if (frmExists.AlwaysUseSelectedOption)
-                                        {
-                                            if (frmExists.Overwrite)
-                                                filenameAlreadyExistsOption = FilenameAlreadyExistsOption.Overwrite;
-                                            else
-                                                filenameAlreadyExistsOption = FilenameAlreadyExistsOption.Skip;
-                                        }
-                                        break;
-                                    case FilenameAlreadyExistsOption.Overwrite:
-                                        break;
-                                    case FilenameAlreadyExistsOption.Skip:
-                                        continue;
-                                }
-                            }
-
-                            instructionsToProcess.Add(instruction);
-                        } 
-                    }
-                }
-                finally
-                {
-                    instructionsToProcess.CompleteAdding();
-                }
-            });
-            
-
-            var stage2 = Task.Run(() =>
-                {
-                // Process lines on a ThreadPool thread
-                // as soon as they become available.
-                
-
-                    //parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = parallelInt };
-                    Parallel.ForEach(instructionsToProcess.GetConsumingEnumerable(), parallelOptions, instruction =>
-                    {
-                        instruction.Process();
-                    });
-                });
-
-            // Block until both tasks have completed.
-            // This makes this method prone to deadlocking.
-            // Consider using 'await Task.WhenAll' instead.
-            //await Task.WhenAll(stage1, stage2);
-            Task.WaitAll(stage1, stage2);
-        }
-
-        private ParallelOptions FigureOutParallelOptions(string selectedText)
-        {
-            switch (selectedText)
-            {
-                case "100%":
-                    return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
-                case "75%":
-                    return new ParallelOptions { MaxDegreeOfParallelism =  Convert.ToInt32(Environment.ProcessorCount * 0.75) };
-                case "50%":
-                    return new ParallelOptions { MaxDegreeOfParallelism = Convert.ToInt32(Environment.ProcessorCount * 0.5) };
-                case "25%":
-                    return new ParallelOptions { MaxDegreeOfParallelism = Convert.ToInt32(Environment.ProcessorCount * 0.25) };
-                case "0":
-                    return new ParallelOptions { MaxDegreeOfParallelism = 1 };
-                default:
-                    return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
-            }
-        }
-
-        /// <summary>
-        /// Allows us to automatically set the parallelism for the conversion task.
-        /// </summary>
-        /// <param name="file"></param>
-        /// <param name="wasParallelChecked"></param>
-        /// <returns></returns>
-        private ParallelOptions FigureOutParallelOptions(string file, bool wasParallelChecked)
-        {
-            if (wasParallelChecked)
-            {
-                int OneMegaByte = 1 * 1024 * 1024;
-                int FiveMegaBytes = 5 * 1024 * 1024;
-                int TenMegaBytes = 10 * 1024 * 1024;
-                int OneHundredMegaBytes = 100 * 1024 * 1024;
-
-                FileInfo fileToCheck = new FileInfo(file);
-                var fileSize = fileToCheck.Length;
-                if (fileSize < OneMegaByte)
-                {
-                    return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
-                }
-                else if (fileSize > OneMegaByte && fileSize < FiveMegaBytes)
-                {
-                    return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount / 2 };
-                }
-                else if (fileSize > FiveMegaBytes && fileSize < TenMegaBytes)
-                {
-                    return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount / 4 };
-                }
-                else
-                {
-                    return new ParallelOptions { MaxDegreeOfParallelism = 1 };
-                } 
-            }
-            else
-            {
-                return new ParallelOptions { MaxDegreeOfParallelism = 1 };
-            }
-
-        }
-
-        private static ISupportedImageFormat GetFormatFromSelectedOutput(ImageFormat convertTo)
-        {
-            ISupportedImageFormat format = null;
-            switch (convertTo.ToString())
-            {
-                case "Jpeg":
-                    format = new JpegFormat { };
-                    break;
-                case "Png":
-                    format = new PngFormat { };
-                    break;
-                case "Tiff":
-                    format = new TiffFormat { };
-                    break;
-                default:
-                    break;
-            }
-            return format;
-
         }
 
         /// <summary>
@@ -667,33 +235,49 @@ namespace MultiThreadedBulkImageConverter
         }
 
         /// <summary>
-        /// Gets the appropriate extension to use for the selected output image format
+        /// Sets up the controls on the form.  No kidding.
         /// </summary>
-        /// <param name="inputExtension"></param>
-        /// <returns>A string containing the appropriate file extenstion to use for output files</returns>
-        private string GetOutputExtension(string inputExtension)
+        protected void SetupControls()
         {
-            switch (inputExtension)
-            {
-                case "Icon":
-                    return "ico";
-
-                case "Jpeg":
-                    return "jpg";
-
-                case "Tiff":
-                    return "tif";
-
-                default:
-                    return inputExtension;
-            }
+            PopulateImageTypeCombo(cboSourceTypes);
+            PopulateImageTypeCombo(cboOutputTypes);
+            //cboSourceTypes.Items = cboSourceTypes.Items;
         }
 
-        private enum FilenameAlreadyExistsOption
+        /// <summary>
+        /// Toggles the Enabled property of the input controls
+        /// </summary>
+        /// <param name="Enable">A boolean indicating whether or not the controls should be enabled</param>
+        protected void ToggleInputEnable(bool Enable)
         {
-            Ask,
-            Overwrite,
-            Skip
+            txtImageDirectory.Enabled = Enable;
+            BtnBrowse.Enabled = Enable;
+            cboSourceTypes.Enabled = Enable;
+            cboOutputTypes.Enabled = Enable;
+            chkDeleteAfterConvert.Enabled = Enable;
+            btnStart.Enabled = Enable;
+            btnExit.Enabled = Enable;
+        }
+
+        private static ISupportedImageFormat GetFormatFromSelectedOutput(ImageFormat convertTo)
+        {
+            ISupportedImageFormat format = null;
+            switch (convertTo.ToString())
+            {
+                case "Jpeg":
+                    format = new JpegFormat { };
+                    break;
+                case "Png":
+                    format = new PngFormat { };
+                    break;
+                case "Tiff":
+                    format = new TiffFormat { };
+                    break;
+                default:
+                    break;
+            }
+            return format;
+
         }
 
         private static Bitmap GetGrayscale(Bitmap input)
@@ -723,27 +307,489 @@ namespace MultiThreadedBulkImageConverter
             return output;
         }
 
-        /// <summary>
-        /// Gets the file masks which apply to the specified image type
-        /// </summary>
-        /// <param name="imageType"></param>
-        /// <returns></returns>
-        public static string[] GetFileMasks(string imageType)
+        private void BtnBrowse_Click(object sender, EventArgs e)
         {
-            switch (imageType)
+            FolderBrowserDialog dlg = null;
+
+            try
             {
-                case "Icon":
-                    return new string[] { "*.ico", "*.icon" };
+                dlg = new FolderBrowserDialog();
+                if (dlg.ShowDialog() != DialogResult.Cancel)
+                    txtImageDirectory.Text = dlg.SelectedPath;
 
-                case "Jpeg":
-                    return new string[] { "*.jpg", "*.jpeg" };
-
-                case "Tiff":
-                    return new string[] { "*.tif", "*.tiff" };
-
-                default:
-                    return new string[] { "*." + imageType };
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                if (dlg != null)
+                    dlg.Dispose();
             }
         }
+
+        private void BtnCancel_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void BtnExit_Click(object sender, EventArgs e)
+        {
+            this.Close();
+        }
+
+        private void BtnStart_ClickAsync(object sender, EventArgs e)
+        {
+            ImageFormat format = null;
+            string[] inputFileMasks = null;
+            inputFileMasks = GetFileMasks(cboSourceTypes.Text);
+            format = GetSelectedOutputImageFormat();
+            SearchOption subfolders;
+            if (chkIncludeSubDirs.Checked)
+            {
+                subfolders = SearchOption.AllDirectories;
+            }
+            else
+            {
+                subfolders = SearchOption.TopDirectoryOnly;
+            }
+            int totalFiles = GetFileCount(txtImageDirectory.Text, inputFileMasks, chkIncludeSubDirs.Checked);
+            if (totalFiles == 0)
+            {
+                this.Cursor = Cursors.Default;
+                MessageBox.Show("There are no files of the type you specified in the chosen directory.",
+                    "No files to convert", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            else
+            {
+                prgStatus.Value = 0;
+                prgStatus.Maximum = totalFiles;
+            }
+            if (!OKToProceed()) return;
+
+            ReadAndProcessFilesInBackground(txtImageDirectory.Text, subfolders, inputFileMasks, format, chkDeleteAfterConvert.Checked, FilenameAlreadyExistsOption.Ask);
+            //ReadAndProcessFilesAsync(txtImageDirectory.Text, subfolders, inputFileMasks, format, chkDeleteAfterConvert.Checked, FilenameAlreadyExistsOption.Ask);
+            //workerThread.RunWorkerAsync();
+            int iterations = 0;
+            double count = instructionsToProcess.Count;
+            Parallel.ForEach(instructionsToProcess, parallelOptions,
+                 (q) =>
+                 {
+                     BackgroundWorker worker = new BackgroundWorker
+                     {
+                         WorkerReportsProgress = true
+                     };
+
+                     worker.RunWorkerAsync();
+                     int percentComplete = Convert.ToInt32(iterations / count);
+
+                     worker.DoWork += new DoWorkEventHandler(q.Process);
+                     worker.ProgressChanged += new ProgressChangedEventHandler(WorkerThread_ProgressChanged);
+                     worker.ReportProgress(percentComplete, q.outputFileName);
+                     worker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(WorkerThread_RunWorkerCompleted);
+                 });
+
+        }
+
+        private void BtnStop_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private ParallelOptions FigureOutParallelOptions(string selectedText)
+        {
+            switch (selectedText)
+            {
+                case "100%":
+                    return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+                case "75%":
+                    return new ParallelOptions { MaxDegreeOfParallelism = Convert.ToInt32(Environment.ProcessorCount * 0.75) };
+                case "50%":
+                    return new ParallelOptions { MaxDegreeOfParallelism = Convert.ToInt32(Environment.ProcessorCount * 0.5) };
+                case "25%":
+                    return new ParallelOptions { MaxDegreeOfParallelism = Convert.ToInt32(Environment.ProcessorCount * 0.25) };
+                case "0":
+                    return new ParallelOptions { MaxDegreeOfParallelism = 1 };
+                default:
+                    return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+            }
+        }
+
+        //    // Block until both tasks have completed.
+        //    // This makes this method prone to deadlocking.
+        //    // Consider using 'await Task.WhenAll' instead.
+        //    //await Task.WhenAll(stage1, stage2);
+        //    Task.WaitAll(stage1, stage2);
+        //}
+        /// <summary>
+        /// Allows us to automatically set the parallelism for the conversion task.
+        /// </summary>
+        /// <param name="file"></param>
+        /// <param name="wasParallelChecked"></param>
+        /// <returns></returns>
+        private ParallelOptions FigureOutParallelOptions(string file, bool wasParallelChecked)
+        {
+            if (wasParallelChecked)
+            {
+                int OneMegaByte = 1 * 1024 * 1024;
+                int FiveMegaBytes = 5 * 1024 * 1024;
+                int TenMegaBytes = 10 * 1024 * 1024;
+                int OneHundredMegaBytes = 100 * 1024 * 1024;
+
+                FileInfo fileToCheck = new FileInfo(file);
+                var fileSize = fileToCheck.Length;
+                if (fileSize < OneMegaByte)
+                {
+                    return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+                }
+                else if (fileSize > OneMegaByte && fileSize < FiveMegaBytes)
+                {
+                    return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount / 2 };
+                }
+                else if (fileSize > FiveMegaBytes && fileSize < TenMegaBytes)
+                {
+                    return new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount / 4 };
+                }
+                else
+                {
+                    return new ParallelOptions { MaxDegreeOfParallelism = 1 };
+                }
+            }
+            else
+            {
+                return new ParallelOptions { MaxDegreeOfParallelism = 1 };
+            }
+
+        }
+
+        /// <summary>
+        /// Gets the number of files from the specified directory which match the supplied filemask
+        /// </summary>
+        /// <param name="directory">The directory to get a file count from</param>
+        /// <param name="fileMasks">The filemask(s) to count</param>
+        /// <param name="includeSubDirs">Specifies whether subdirectories of the specified directory should 
+        /// be included</param>
+        /// <returns>The total number of files from the specified directory which match the supplied filemask</returns>
+        private int GetFileCount(string directory, string[] fileMasks, bool includeSubDirs)
+        {
+            int totalFiles = 0;
+
+            foreach (string fileMask in fileMasks)
+            {
+                totalFiles += Directory.GetFiles(directory, fileMask).Length;
+            }
+
+            //If we're including subdirectories, recursively call this function for each subdirectory
+            if (includeSubDirs)
+            {
+                foreach (string dir in Directory.GetDirectories(directory))
+                {
+                    totalFiles += GetFileCount(dir, fileMasks, true);
+                }
+            }
+
+            return totalFiles;
+        }
+
+        //            //parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = parallelInt };
+        //            Parallel.ForEach(instructionsToProcess.GetConsumingEnumerable(), parallelOptions, instruction =>
+        //            {
+        //                instruction.Process();
+        //            });
+        //        });
+        /// <summary>
+        /// Gets the appropriate extension to use for the selected output image format
+        /// </summary>
+        /// <param name="inputExtension"></param>
+        /// <returns>A string containing the appropriate file extenstion to use for output files</returns>
+        private string GetOutputExtension(string inputExtension)
+        {
+            switch (inputExtension)
+            {
+                case "Icon":
+                    return "ico";
+
+                case "Jpeg":
+                    return "jpg";
+
+                case "Tiff":
+                    return "tif";
+
+                default:
+                    return inputExtension;
+            }
+        }
+
+        private void LnkSourceForgeProfile_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            //Open link to my SourceForge page
+            System.Diagnostics.Process.Start("http://sourceforge.net/users/slade73/");
+        }
+
+        //private void ImageOps_OnImageConversionStart(ImageOpsEventArgs args)
+        //{
+        //    SetLabelStatusText("Converted " + args.ImageFilename);
+        //    prgStatus.Value++;
+        //}
+        private void PopulateImageTypeCombo(ComboBox pCombo)
+        {
+            PropertyInfo[] props;
+
+            try
+            {
+                //Get the static properties of the ImageFormat class
+                //props = typeof(System.Drawing.Imaging.ImageFormat).GetProperties(BindingFlags.Static);
+                props = typeof(System.Drawing.Imaging.ImageFormat).GetProperties(BindingFlags.Static | BindingFlags.Public);
+
+                //Loop through each property and add to the specified ComboBox
+                //pCombo.Items.AddRange(props); //Can't do it this way, as ToString() returns the long name
+                foreach (PropertyInfo prop in props)
+                {
+                    if (prop.Name != "MemoryBmp" && prop.Name != "Icon")
+                        pCombo.Items.Add(prop.Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("An error occurred while trying to load available image types:\n\n" + ex.Message,
+                    "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                props = null;
+            }
+        }
+
+        //private void ImageOps_OnImageConversionComplete(ImageOpsEventArgs args)
+        //{
+        //    SetLabelStatusText("Converting " + args.ImageFilename + "...");
+        //    //prgStatus.Value++;
+        //}
+        private void ReadAndProcessFilesInBackground(
+            string filePath,
+            SearchOption includeSubDirs,
+            string[] convertFromFileMasks,
+            ImageFormat convertTo,
+            bool deleteAfterConversion,
+            FilenameAlreadyExistsOption filenameAlreadyExistsOption)
+        {
+            instructionsToProcess = new BlockingCollection<Instruction>();
+            frmFileExists frmExists = null;
+            string newFilename = null;
+            string outputExt = null;
+            parallelOptions = FigureOutParallelOptions(cbParallelOptions.Text);
+            int parallelInt = 1;
+            bool filesizeChecked = false;
+
+            try
+            {
+                outputExt = GetOutputExtension(convertTo.ToString()).ToLower();
+                foreach (var fileMask in convertFromFileMasks)
+                {
+                    foreach (string item in System.IO.Directory.EnumerateFiles(filePath, fileMask, includeSubDirs))
+                    {
+                        if (!filesizeChecked)
+                        {
+
+                            //parallelOptions = FigureOutParallelOptions(item, chkRunParallel.Checked);
+                            parallelInt = parallelOptions.MaxDegreeOfParallelism;
+                            filesizeChecked = true;
+                        }
+                        newFilename = Path.GetDirectoryName(item) + "\\" + Path.GetFileNameWithoutExtension(item) + "." + outputExt;
+                        Instruction instruction = new Instruction(inputFileName: item, outputFileName: newFilename, formatToOutput: convertTo, parallelOptions: parallelOptions);
+                        if (File.Exists(item))
+                        {
+                            switch (filenameAlreadyExistsOption)
+                            {
+                                case FilenameAlreadyExistsOption.Ask:
+                                    //Display dialog asking user what to do
+                                    if (frmExists == null)
+                                        frmExists = new frmFileExists(newFilename);
+                                    else
+                                        frmExists.Filename = filePath + "\\" + newFilename;
+
+                                    frmExists.ShowDialog();
+                                    if (frmExists.AlwaysUseSelectedOption)
+                                    {
+                                        if (frmExists.Overwrite)
+                                            filenameAlreadyExistsOption = FilenameAlreadyExistsOption.Overwrite;
+                                        else
+                                            filenameAlreadyExistsOption = FilenameAlreadyExistsOption.Skip;
+                                    }
+                                    break;
+                                case FilenameAlreadyExistsOption.Overwrite:
+                                    break;
+                                case FilenameAlreadyExistsOption.Skip:
+                                    continue;
+                            }
+                        }
+
+                        instructionsToProcess.Add(instruction);
+                    }
+                }
+            }
+            finally
+            {
+                instructionsToProcess.CompleteAdding();
+            }
+
+
+        }
+
+        //    while(keeprunning)
+        //    {
+        //        //foreach (var item in instructionsToProcess)
+        //        //{
+        //        //    item.Process();
+        //        //}
+        //        int iterations = 0;
+        //        double count = instructionsToProcess.Count;
+        //        Parallel.ForEach(instructionsToProcess.GetConsumingEnumerable(), parallelOptions, instruction =>
+        //            {
+        //                instruction.Process();
+        //                iterations++;
+        //                int percentComplete = Convert.ToInt32(iterations / count);
+        //                workerThread.ReportProgress(percentComplete, instruction.outputFileName);
+        //            });
+        //        //instruction.Process();
+        //        //int percentComplete = Convert.ToInt32(iterations / count);
+        //        //sender.ReportProgress(percentComplete, instruction.outputFileName);
+        //        //workerThread.ReportProgress(prgStatus.Value++);
+        //    }
+        //}
+        private void SetLabelStatusText(string text)
+        {
+            // InvokeRequired required compares the thread ID of the
+            // calling thread to the thread ID of the creating thread.
+            // If these threads are different, it returns true.
+            if (this.lblStatus.InvokeRequired)
+            {
+                SetTextCallback d = new SetTextCallback(SetLabelStatusText);
+                this.Invoke(d, new object[] { text });
+            }
+            else
+            {
+                this.lblStatus.Text = text;
+                this.lblStatus.Refresh();
+            }
+        }
+
+        //public void WorkerThread_DoWork(object sender, DoWorkEventArgs e)
+        //{
+        //    MessageBox.Show("Sender= " + sender);
+        //    keeprunning = true;
+        private void SetProgressStatusValue(int progress)
+        {
+            if (this.prgStatus.InvokeRequired)
+            {
+                SetProgressCallback d = new SetProgressCallback(SetProgressStatusValue);
+                this.Invoke(d, new object[] { progress });
+            }
+            else
+            {
+                this.prgStatus.Value = progress;
+            }
+        }
+
+        private void WorkerThread_ProgressChanged(object sender, ProgressChangedEventArgs e)
+        {
+            SetLabelStatusText("Converted " + e.UserState.ToString()); //args.ImageFilename;
+            SetProgressStatusValue(e.ProgressPercentage);
+            //prgStatus.Value++;
+        }
+
+        private void WorkerThread_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+            if (e.Cancelled)
+            {
+                SetLabelStatusText("Cancelled");
+            }
+            else
+            {
+                SetLabelStatusText("Stopped");
+            }
+            //sender.CancelAsync();
+            workerThread.CancelAsync();
+        }
+        //private void ReadAndProcessFilesAsync(
+        //    string filePath, 
+        //    SearchOption includeSubDirs, 
+        //    string[] convertFromFileMasks, 
+        //    ImageFormat convertTo, 
+        //    bool deleteAfterConversion,
+        //    FilenameAlreadyExistsOption filenameAlreadyExistsOption)
+        //{
+        //    // Our thread-safe collection used for the handover.
+        //    var instructionsToProcess = new BlockingCollection<Instruction>();
+        //    frmFileExists frmExists = null;
+        //    string newFilename = null;
+        //    string outputExt = null;
+        //    ParallelOptions parallelOptions = FigureOutParallelOptions(cbParallelOptions.Text);
+        //    int parallelInt = 1;
+        //    bool filesizeChecked = false;
+
+        //    // Build the pipeline.
+        //    var stage1 = Task.Run(() =>
+        //    {
+        //        try
+        //        {
+        //            outputExt = GetOutputExtension(convertTo.ToString()).ToLower();
+        //            foreach (var fileMask in convertFromFileMasks)
+        //            {
+        //                foreach (string item in System.IO.Directory.EnumerateFiles(filePath, fileMask, includeSubDirs))
+        //                {
+        //                    if (!filesizeChecked)
+        //                    {
+                                
+        //                        //parallelOptions = FigureOutParallelOptions(item, chkRunParallel.Checked);
+        //                        parallelInt = parallelOptions.MaxDegreeOfParallelism;
+        //                        filesizeChecked = true;
+        //                    }
+        //                    newFilename = Path.GetDirectoryName(item) + "\\" + Path.GetFileNameWithoutExtension(item) + "." + outputExt;
+        //                    Instruction instruction = new Instruction(inputFileName: item, outputFileName: newFilename, formatToOutput: convertTo, parallelOptions: parallelOptions);
+        //                    if (File.Exists(item))
+        //                    {
+        //                        switch (filenameAlreadyExistsOption)
+        //                        {
+        //                            case FilenameAlreadyExistsOption.Ask:
+        //                                //Display dialog asking user what to do
+        //                                if (frmExists == null)
+        //                                    frmExists = new frmFileExists(newFilename);
+        //                                else
+        //                                    frmExists.Filename = filePath + "\\" + newFilename;
+
+        //                                frmExists.ShowDialog();
+        //                                if (frmExists.AlwaysUseSelectedOption)
+        //                                {
+        //                                    if (frmExists.Overwrite)
+        //                                        filenameAlreadyExistsOption = FilenameAlreadyExistsOption.Overwrite;
+        //                                    else
+        //                                        filenameAlreadyExistsOption = FilenameAlreadyExistsOption.Skip;
+        //                                }
+        //                                break;
+        //                            case FilenameAlreadyExistsOption.Overwrite:
+        //                                break;
+        //                            case FilenameAlreadyExistsOption.Skip:
+        //                                continue;
+        //                        }
+        //                    }
+
+        //                    instructionsToProcess.Add(instruction);
+        //                } 
+        //            }
+        //        }
+        //        finally
+        //        {
+        //            instructionsToProcess.CompleteAdding();
+        //        }
+        //    });
+            
+
+        //    var stage2 = Task.Run(() =>
+        //        {
+        //        // Process lines on a ThreadPool thread
+        //        // as soon as they become available.
     }
 }
